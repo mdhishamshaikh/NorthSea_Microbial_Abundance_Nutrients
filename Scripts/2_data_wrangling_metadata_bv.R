@@ -258,19 +258,20 @@ NJ2020_abundance$VBR<- NJ2020_abundance$Total_Viruses/NJ2020_abundance$Total_Bac
 
 
 #Adding coordinates and nutrients to the data sets
-coordinates <- read_excel("Metadata/Metadata_Microbial_Abundances_NJ2020_PE477_PE486.xlsx", 
+coordinates <- openxlsx::read.xlsx("Metadata/Metadata_Microbial_Abundances_NJ2020_PE477_PE486.xlsx", 
                                                                sheet = "Coordinates")
-nutrients_ts<- read_excel("Metadata/Metadata_Microbial_Abundances_NJ2020_PE477_PE486.xlsx", 
+nutrients_ts<- openxlsx::read.xlsx("Metadata/Metadata_Microbial_Abundances_NJ2020_PE477_PE486.xlsx", 
                              sheet = "Nutrients")
 
 NJ2020_abundance<- merge(NJ2020_abundance, coordinates[coordinates$Location == 'NJ2020', c(1,3,4)], by = "Location")
 cruise_abundance<- merge(cruise_abundance, coordinates[coordinates$Location %in% c('PE477', 'PE486'),]  )
 
-NJ2020_abundance<- merge(NJ2020_abundance, nutrients_ts[nutrients_ts$Location == 'NJ2020',], by = "Expt_No")
+NJ2020_abundance<- merge(NJ2020_abundance, nutrients_ts[nutrients_ts$Location == 'NJ2020',], 
+                         by = c("Location", "Expt_No"))
 cruise_abundance<- merge(cruise_abundance, nutrients_ts[nutrients_ts$Location %in% c('PE477', 'PE486'),])
 
 
 #Combine and save as csv Save as a csv file
 abundance_abiotic <- rbind(NJ2020_abundance, cruise_abundance)
 
-write.csv(abundance, "nj2020_pe477_pe486_bv_abundance.csv", row.names = F)
+write.csv(abundance_abiotic, "nj2020_pe477_pe486_bv_abundance_abiotic.csv", row.names = F)
