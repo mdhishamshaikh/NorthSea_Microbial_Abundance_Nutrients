@@ -1,6 +1,8 @@
-
+library(tidyverse)
 #Let's focus on the cruise data. Perhaps just PE477.
 #Let's plot the coordinates and add circular plots on these coordinates
+
+cruise_abundance<- read.csv("nj2020_pe477_pe486_bv_abundance.csv")
 
 PE477<- cruise_abundance[cruise_abundance$Location == 'PE477',]
 PE477<- gather(PE477, "Total_Bacteria", "HNA", "LNA", key = "Bacteria", value = "Bacterial_Count")
