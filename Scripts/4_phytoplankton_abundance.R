@@ -39,7 +39,7 @@ phyto_counts <- phyto_counts %>%
   filter(!grepl("8m", Filename))
 
 
-write.csv(phyto_counts, file = "./phytoplakton_counts_pe477_pe486.csv", row.names= F)
+write.csv(phyto_counts, file = "./phytoplankton_counts_pe477_pe486.csv", row.names= F)
 
 
 custom_palette <- c(
