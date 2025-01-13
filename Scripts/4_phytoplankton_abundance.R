@@ -3,7 +3,9 @@ library(tidyverse)
 
 # Importing FCSExpress5 output
 
-fcs_express_phyto<- readxl::read_xlsx("C:/Users/hisham.shaikh/OneDrive - UGent/Projects/Microbial_Abundances/Microbial_Abundances_NJ2020_PE477_PE486/Algal_Abundances_NJ2020_PE477_PE486/Working_Algal_Abundances_NJ2020_PE477_PE486/FCS_Express5/PE477_PE486_algal_abundance_FCSExpress5_Output.xlsx")
+#fcs_express_phyto<- readxl::read_xlsx("C:/Users/hisham.shaikh/OneDrive - UGent/Projects/Microbial_Abundances/Microbial_Abundances_NJ2020_PE477_PE486/Algal_Abundances_NJ2020_PE477_PE486/Working_Algal_Abundances_NJ2020_PE477_PE486/FCS_Express5/PE477_PE486_algal_abundance_FCSExpress5_Output.xlsx")
+
+fcs_express_phyto<- readxl::read_xlsx("./Data/PE477_PE486_algal_abundance_FCSExpress5_Output.xlsx")
 
 
 # As all the gates were added as columns and not rows, I will slice chunks of 7 columns and add them as rows
@@ -35,6 +37,9 @@ phyto_counts <- phyto_counts %>%
   filter(!Location_Station %in% c("PE477_7", "PE486_8")) %>%
   filter(!grepl("SSC425", Filename)) %>%
   filter(!grepl("8m", Filename))
+
+
+write.csv(phyto_counts, file = "./phytoplakton_counts_pe477_pe486.csv", row.names= F)
 
 
 custom_palette <- c(
