@@ -34,9 +34,74 @@ phyto_counts <- phyto_counts %>%
   ) %>%
   mutate(Location_Station = paste(Location, Station_Number, sep = "_")) %>%
   filter(Depth %in% c(7, 15, 30)) %>%
-  filter(!Location_Station %in% c("PE477_7", "PE486_8")) %>%
+  #filter(!Location_Station %in% c("PE477_7", "PE486_8")) %>%
   filter(!grepl("SSC425", Filename)) %>%
-  filter(!grepl("8m", Filename))
+  filter(!grepl("8m", Filename)) %>%
+  filter(!grepl("Bottle11", Filename))
+
+
+# Getting per mL counts #
+# PE477 were measured on 11th may 2021
+# PE486B measured on 10th May 2021
+# Flow rate 10th May = 107 µL min-1
+# Flow rate 11th May = 129 µL min-1
+# All samples measured for ~ 10 mins
+
+{library(flowCore)
+  
+  fcs_dir <- "C:/Users/hisham.shaikh/OneDrive - UGent/Projects/Microbial_Abundances/Microbial_Abundances_NJ2020_PE477_PE486/Algal_Abundances_NJ2020_PE477_PE486/Raw_Data_Algal_Abundances_NJ2020_PE477_PE486/PE477_PE486_Algal_Files"
+  fcs_files <- list.files(fcs_dir, pattern = "\\.fcs$", full.names = TRUE)
+  
+  # Initialize a data frame to store results
+  measurement_info <- data.frame(File = basename(fcs_files), Date = NA, Acquisition_Duration = NA)
+  
+  # Loop through each file and extract metadata
+  for (i in seq_along(fcs_files)) {
+    tryCatch({
+      fcs_data <- read.FCS(fcs_files[i], transformation = FALSE, truncate_max_range = FALSE)
+      metadata <- keyword(fcs_data)  # Extract metadata
+      
+      # Extract measurement date
+      measurement_info$Date[i] <- metadata[["$DATE"]]
+      
+      # Extract and compute measurement duration
+      if (!is.null(metadata[["$BTIM"]]) && !is.null(metadata[["$ETIM"]])) {
+        start_time <- as.POSIXct(metadata[["$BTIM"]], format="%H:%M:%S")
+        end_time <- as.POSIXct(metadata[["$ETIM"]], format="%H:%M:%S")
+        measurement_info$Acquisition_Duration[i] <- as.numeric(difftime(end_time, start_time, units="mins"))
+      } else {
+        measurement_info$Acquisition_Duration[i] <- NA  # Assign NA if time info is missing
+      }
+    }, error = function(e) {
+      message(paste("Skipping file due to error:", fcs_files[i]))  # Print message
+      measurement_info$Date[i] <- NA
+      measurement_info$Acquisition_Duration[i] <- NA
+    })
+  }
+  
+  
+  measurement_info <- measurement_info %>%
+    mutate(Tag = sub(".*_(PE\\d+_\\d+_\\d+).*", "\\1", File)) %>%
+    filter(!grepl("Cruise_NorthSea", Tag))%>%
+    separate(Tag, into = c("Location", "Station_Number", "Depth"), sep = "_", convert = TRUE) %>%
+    mutate(Acquisition_Duration = round(replace_na(Acquisition_Duration, 10)))
+  }
+
+phyto_counts <- phyto_counts %>%
+  left_join(measurement_info %>% select(Location, Station_Number, Depth, Acquisition_Duration), 
+            by = c("Location", "Station_Number", "Depth")) %>%
+  
+  # Add Flow Rate based on Location
+  mutate(Flow_Rate = case_when(
+    Location == "PE477" ~ 129,   # Flow rate for PE477
+    Location == "PE486" ~ 107,   # Flow rate for PE486
+    TRUE ~ NA_real_            # Assign NA if Location is neither
+  )) %>%
+  
+  # Calculate Cells per mL
+  mutate(cells_per_mL = Total_Events / (Acquisition_Duration * Flow_Rate * 1e-3))
+
+
 
 
 write.csv(phyto_counts, file = "./phytoplankton_counts_pe477_pe486.csv", row.names= F)
@@ -51,7 +116,7 @@ custom_palette <- c(
 )
 
 # Create the plot with facets for Depth and Gate
-ggplot(phyto_counts, aes(x = Location_Station, y = Total_Events, fill = Location_Station)) +
+ggplot(phyto_counts, aes(x = Location_Station, y = cells_per_mL, fill = Location_Station)) +
   geom_bar(stat = "identity") + # Bar plot with count of events
   facet_grid(Depth ~ Gate, scales = "fixed", switch = "both") + # Facets for Depth and Gate
   scale_fill_manual(values = custom_palette) +
@@ -73,7 +138,7 @@ ggsave("phyto_abundance_facet_plot_depths.svg", width = 24, height = 8, dpi = 80
 # Create the plot with facets for Depth and Gate
 ggplot(phyto_counts %>%
          filter(!Gate %in% c(0, 1, 14, 3, 4, 5, 6))
-       , aes(x = Location_Station, y = Total_Events, fill = Location_Station)) +
+       , aes(x = Location_Station, y = cells_per_mL, fill = Location_Station)) +
   geom_bar(stat = "identity") + # Bar plot with count of events
   facet_grid(Depth ~ Gate, scales = "fixed", switch = "both") + # Facets for Depth and Gate
   scale_fill_manual(values = custom_palette) +
@@ -88,6 +153,11 @@ ggplot(phyto_counts %>%
     strip.text = element_text(size = 10, face = "bold"),
     axis.text.x = element_text(angle = 90)
   )
+
+
+
+
+
 
 
 library(dplyr)
@@ -181,3 +251,5 @@ ggplot(pca_data, aes(x = PC1, y = PC2, color = Location_Station, shape = as.fact
     legend.title = element_text(size = 10, face = "bold"),
     legend.text = element_text(size = 9)
   )
+
+
