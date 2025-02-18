@@ -87,8 +87,16 @@ phyto_counts <- phyto_counts %>%
     mutate(Acquisition_Duration = round(replace_na(Acquisition_Duration, 10)))
   }
 
-
 measurement_info <- measurement_info %>%
+  mutate(Date = case_when(
+    grepl("Cruise_NorthSea_PE477_Algae_PE477_7_7m_Bottle3.fcs", File) ~ "11-MAY-2021",
+    !is.na(Date) ~ Date,  # Preserve existing Date values
+    TRUE ~ NA_character_   # Keep NA for others without modification
+  ))
+
+
+  
+measurement_info <- measurement_info  %>%
   mutate(Station_Number = as.integer(Station_Number),
          Depth = as.integer(Depth))%>%
   na.omit() 
