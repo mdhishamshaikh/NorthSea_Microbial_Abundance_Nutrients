@@ -5,7 +5,7 @@ library(tidyverse)
 
 #fcs_express_phyto<- readxl::read_xlsx("C:/Users/hisham.shaikh/OneDrive - UGent/Projects/Microbial_Abundances/Microbial_Abundances_NJ2020_PE477_PE486/Algal_Abundances_NJ2020_PE477_PE486/Working_Algal_Abundances_NJ2020_PE477_PE486/FCS_Express5/PE477_PE486_algal_abundance_FCSExpress5_Output.xlsx")
 
-fcs_express_phyto<- readxl::read_xlsx("./Data/PE477_PE486_algal_abundance_FCSExpress5_Output.xlsx")
+fcs_express_phyto<- readxl::read_xlsx("./Data/PE477_PE486_algal_abundance_with_total_FCSExpress5_Output.xlsx")
 
 
 # As all the gates were added as columns and not rows, I will slice chunks of 7 columns and add them as rows
@@ -25,7 +25,7 @@ stacked_data <- lapply(1:num_chunks, function(i) {
 phyto_counts <- do.call(rbind, stacked_data)
 phyto_counts <- phyto_counts %>%
   mutate(Tag = sub(".*_(PE\\d+_\\d+_\\d+).*", "\\1", Filename)) %>%
-  filter(!grepl("Cruise_NorthSea", Tag)) %>%
+  dplyr::filter(!grepl("Cruise_NorthSea", Tag)) %>%
   separate(Tag, into = c("Location", "Station_Number", "Depth"), sep = "_", convert = TRUE) %>%
   mutate(
     Overlay_Gate = gsub("Gate ", "", Overlay_Gate),
@@ -33,11 +33,11 @@ phyto_counts <- phyto_counts %>%
     Gate = ifelse(tolower(Gate) == "none", "0", Gate)  # Replace "None" with "O"
   ) %>%
   mutate(Location_Station = paste(Location, Station_Number, sep = "_")) %>%
-  filter(Depth %in% c(7, 15, 30)) %>%
+  dplyr::filter(Depth %in% c(7, 15, 30)) %>%
   #filter(!Location_Station %in% c("PE477_7", "PE486_8")) %>%
-  filter(!grepl("SSC425", Filename)) %>%
-  filter(!grepl("8m", Filename)) %>%
-  filter(!grepl("Bottle11", Filename))
+  dplyr::filter(!grepl("SSC425", Filename)) %>%
+  dplyr::filter(!grepl("8m", Filename)) %>%
+  dplyr::filter(!grepl("Bottle11", Filename))
 
 
 # Getting per mL counts #
@@ -82,10 +82,16 @@ phyto_counts <- phyto_counts %>%
   
   measurement_info <- measurement_info %>%
     mutate(Tag = sub(".*_(PE\\d+_\\d+_\\d+).*", "\\1", File)) %>%
-    filter(!grepl("Cruise_NorthSea", Tag))%>%
+    dplyr::filter(!grepl("Cruise_NorthSea", Tag))%>%
     separate(Tag, into = c("Location", "Station_Number", "Depth"), sep = "_", convert = TRUE) %>%
     mutate(Acquisition_Duration = round(replace_na(Acquisition_Duration, 10)))
   }
+
+
+measurement_info <- measurement_info %>%
+  mutate(Station_Number = as.integer(Station_Number),
+         Depth = as.integer(Depth))%>%
+  na.omit() 
 
 phyto_counts <- phyto_counts %>%
   left_join(measurement_info %>% select(Location, Station_Number, Depth, Acquisition_Duration), 
