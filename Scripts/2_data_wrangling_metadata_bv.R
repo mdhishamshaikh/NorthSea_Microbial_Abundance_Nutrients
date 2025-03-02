@@ -17,6 +17,7 @@ BiocManager::install(c("tidyverse", "magrittr", "readxl"))
   library("magrittr")
   library("readxl")
   library("readr")
+  library("openxlsx")
 }
 
 
@@ -262,6 +263,38 @@ coordinates <- openxlsx::read.xlsx("Metadata/Metadata_Microbial_Abundances_NJ202
                                                                sheet = "Coordinates")
 nutrients_ts<- openxlsx::read.xlsx("Metadata/Metadata_Microbial_Abundances_NJ2020_PE477_PE486.xlsx", 
                              sheet = "Nutrients")
+
+# Replacing negative nreints, i.e. ones below detectio limit by limit of quanittiation/2
+# Recalculating Nitrate from there
+
+limits <- c(TON = 0.01529 / 2, 
+            Nitrite = 0.0393 / 2, 
+            Phosphate = 0.0152 / 2, 
+            Silicate = 0.0711 / 2)
+
+# Replace negatives and zeros
+nutrients_ts <- nutrients_ts %>%
+  mutate(
+    TON = ifelse(TON <= 0, limits["TON"], TON),
+    Nitrite = ifelse(Nitrite <= 0, limits["Nitrite"], Nitrite),
+    Phosphate = ifelse(Phosphate <= 0, limits["Phosphate"], Phosphate),
+    Silicate = ifelse(Silicate <= 0, limits["Silicate"], Silicate)
+  ) %>%
+  dplyr::mutate(Nitrate = TON - Nitrite)
+
+# Below detection values for TON 0.007645   
+# Below detection values for Nitrite 0.019650     
+# Below detection values for Phosphate 0.007600   
+# Below detection values for Silicate 0.035550  
+
+# Since there are still negative values in Nitrate. We will repalce them by half of minimum absolute avleus
+nutrients_ts <- nutrients_ts %>%
+  mutate(
+    Nitrate = ifelse(Nitrate <= 0, min(abs(nutrients_ts$Nitrate))/2, Nitrate)
+  )
+
+# Below detection values for Nitrate 0.000175 
+
 nutrients_ts[nutrients_ts$Location == 'NJ2020',]$Depth <- 1
 
 NJ2020_abundance<- merge(NJ2020_abundance, coordinates[coordinates$Location == 'NJ2020', c(1,3,4)], by = "Location")
