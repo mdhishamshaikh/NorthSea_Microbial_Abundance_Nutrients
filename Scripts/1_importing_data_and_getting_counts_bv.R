@@ -3,26 +3,14 @@
 #Setting working directory
 setwd("C:/Users/hisham.shaikh/OneDrive - UGent/Projects/Microbial_Abundances/Microbial_Abundances_NJ2020_PE477_PE486/Microbial Abundances/Microbial_Abundances")
 
-#Install packages if needed.
-if (!requireNamespace("BiocManager", quietly = TRUE))
-  install.packages("BiocManager")
+source("./scripts/0_source.R")
 
-BiocManager::install(c("flowWorkspace", "ggcyto", "magrittr"))
-
-
-#Load packages
-{
-  library("flowWorkspace")
-  library("ggcyto")
-  library("magrittr")
-}
-
-#### 1.0 Importing Data ####
-data<- list.files(path = "./Data") #list files from folder containing data
+#### 1.0 Importing data ####
+data<- list.files(path = "./data") #list files from folder containing data
 flowCore::isFCSfile(data) #none of the FCS files read as FCS. That's because the
 #full path isn't mentioned
 #Adding full path
-data<- paste0("./Data/", data)
+data<- paste0("./data/", data)
 flowCore::isFCSfile(data) #All read as FCS
 
 
@@ -38,7 +26,7 @@ translist_bv<- transformList(c("FSC-H", "SSC-H", "FL1-H", "FL2-H", "FL3-H"), log
 #Insert a reference file. Always remember to take a file not from the dataset being analysed. 
 #As, it will overwrite the name of the same file from the dataset. Best to create a folder 'ref' and dump that file there.
 #Good to use a file containing viral data
-ref_fcs<- paste0("./Ref/VI210507.031_ref")
+ref_fcs<- paste0("./ref/VI210507.031_ref")
 
 
 read_transform_fs_bv <- function(x){ #function to read and transform fcs files
@@ -178,14 +166,14 @@ write.table(x,file= "counts.csv", sep = ",", col.names = c("file_name", "pop", "
 if (length(error_files_stats) + length(unique(counts$file_name)) == length(data)) {
   print(paste("All files are accounted for. Files are either in error_files_stats or",  
         "in the counts csv."))} else {
-          if (length(setdiff(setdiff(data, paste0("./Data/", unique(counts$file_name))), 
+          if (length(setdiff(setdiff(data, paste0("./data/", unique(counts$file_name))), 
                       error_files_stats) )> 0) {
             print("There are files missing/not accounted for. Here are the filenames:")
-            print(setdiff(setdiff(data, paste0("./Data/", unique(counts$file_name))), 
+            print(setdiff(setdiff(data, paste0("./data/", unique(counts$file_name))), 
                           error_files_stats))
           }
         }
-  all_missing_files<- setdiff(data, paste0("./Data/", unique(counts$file_name)))
+  all_missing_files<- setdiff(data, paste0("./data/", unique(counts$file_name)))
   
 }
  
@@ -219,3 +207,5 @@ for (missing_file in all_missing_files) {
   library(readr)
   counts <- read_csv("counts.csv")
 }
+
+file.copy("./counts.csv", "./results/counts/counts.csv")

@@ -1,11 +1,9 @@
-library(tidyverse)
-library(flowCore)
-
+source("./scripts/0_source.R")
 # Importing FCSExpress5 output
 
 #fcs_express_phyto<- readxl::read_xlsx("C:/Users/hisham.shaikh/OneDrive - UGent/Projects/Microbial_Abundances/Microbial_Abundances_NJ2020_PE477_PE486/Algal_Abundances_NJ2020_PE477_PE486/Working_Algal_Abundances_NJ2020_PE477_PE486/FCS_Express5/PE477_PE486_algal_abundance_FCSExpress5_Output.xlsx")
 
-fcs_express_phyto<- readxl::read_xlsx("./Data/NJ2020_PE477_PE486_algal_abundance_with_total_FCSExpress5_Output.xlsx")
+fcs_express_phyto<- readxl::read_xlsx("./data/NJ2020_PE477_PE486_algal_abundance_with_total_FCSExpress5_Output.xlsx")
 
 
 # As all the gates were added as columns and not rows, I will slice chunks of 7 columns and add them as rows
@@ -28,13 +26,11 @@ stacked_data <- lapply(1:num_chunks, function(i) {
 # FGO - Dogger
 
 
-phyto_counts <- do.call(rbind, stacked_data)
-
 # Extracting meadata####
 # To figureout the measurement dates of FCS files to assign flowrate
 
 
-fcs_dir <- "./Data/NJ2020_PE477_PE486_Algal_Files"
+fcs_dir <- "./data/NJ2020_PE477_PE486_Algal_Files"
 fcs_files <- list.files(fcs_dir, pattern = "\\.fcs$", full.names = TRUE)
 
 # Initialize a data frame to store results
@@ -88,7 +84,9 @@ measurement_info[42:48,]$Depth <- 1
 # Flow rate 11th May = 129 µL min-1
 # All samples measured for ~ 10 mins
 
-phyto_counts <- phyto_counts %>%
+phyto_counts2 <- do.call(rbind, stacked_data)
+
+phyto_counts2 <- phyto_counts2 %>%
   mutate(Filename = str_remove(Filename, " compensated$")) %>%
   left_join(measurement_info %>% 
               select(File, Location, Station_Number, Depth, Acquisition_Duration), 
@@ -103,10 +101,53 @@ phyto_counts <- phyto_counts %>%
   )) %>%
   
   # Calculate Cells per mL
-  mutate(cells_per_mL = Total_Events / (Acquisition_Duration * Flow_Rate * 1e-3))
+  mutate(cells_per_mL = Total_Events / (Acquisition_Duration * Flow_Rate * 1e-3)) %>%
+  dplyr::mutate(Location = case_when(Location == "NJ" ~ "NJ2020", TRUE ~ Location)) %>%
+  dplyr::mutate(Location_Station_Number = paste(Location, Station_Number, sep = "_")) 
 
 
-write.csv(phyto_counts, file = "./phytoplankton_counts_nj2020_pe477_pe486.csv", row.names= F)
+phyto_counts_wide <- phyto_counts2 %>%
+  dplyr::select(
+    Location, Station_Number, Location_Station_Number, Depth, Filename, Gate, cells_per_mL
+  ) %>%
+  dplyr::rename(Phyto_Sample_Name = Filename) %>%
+  tidyr::pivot_wider(
+    names_from = Gate,
+    values_from = cells_per_mL
+  ) %>%
+  dplyr::rename(
+    "Total_Phyto" = "total_phyto",
+    "Synecho" = "synecho",
+    "Dogger" = "dogger"
+  ) %>%
+  dplyr::mutate(Station = dplyr::recode(Location_Station_Number, 
+                                        !!!setNames(as.character(c("NJ-1", "NJ-2", "NJ-3", "NJ-4", "NJ-5", "NJ-6", "NJ-7",
+                                                                   1:12, 13.1, 13.2, 14)),
+                                                    c("NJ2020_1", "NJ2020_2", "NJ2020_3", "NJ2020_4",
+                                                      "NJ2020_5", "NJ2020_6", "NJ2020_7",
+                                                      "PE477_1", "PE477_2","PE477_3", "PE477_4",
+                                                      "PE477_5", "PE477_6", "PE477_7",
+                                                      "PE486_1", "PE486_2", "PE486_3", "PE486_4", 
+                                                      "PE486_5","PE486_6", "PE486_7", "PE486_8")))) %>%
+  dplyr::mutate(Station = factor(Station, levels = as.character(c("NJ-1", "NJ-2", "NJ-3", "NJ-4", "NJ-5", "NJ-6", "NJ-7",
+                                                                  1:12, 13.1, 13.2, 14)), ordered = TRUE),
+                Location = factor(Location, levels = c("NJ2020", "PE477", "PE486"))) %>%
+  dplyr::mutate(
+    Fraction_Syencho = Synecho/Total_Phyto,
+    Fraction_Dogger = Dogger/Total_Phyto
+  )
+
+
+
+
+
+
+
+
+
+
+
+write.csv(phyto_counts_wide, file = "./results/abundance_nutrients/phytoplankton_counts_nj2020_pe477_pe486.csv", row.names= F)
 
 
 custom_palette <- c(
@@ -118,7 +159,7 @@ custom_palette <- c(
 )
 
 # Create the plot with facets for Depth and Gate
-ggplot(phyto_counts, aes(x = Location_Station, y = cells_per_mL, fill = Location_Station)) +
+ggplot(phyto_counts2, aes(x = Location_Station_Number, y = cells_per_mL, fill = Location_Station_Number)) +
   geom_bar(stat = "identity") + # Bar plot with count of events
   facet_grid(Depth ~ Gate, scales = "fixed", switch = "both") + # Facets for Depth and Gate
   scale_fill_manual(values = custom_palette) +
@@ -134,27 +175,7 @@ ggplot(phyto_counts, aes(x = Location_Station, y = cells_per_mL, fill = Location
     axis.text.x = element_text(angle = 90)
   )
 
-ggsave("phyto_abundance_facet_plot_depths.svg", width = 24, height = 8, dpi = 800)
-
-
-# Create the plot with facets for Depth and Gate
-ggplot(phyto_counts %>%
-         filter(!Gate %in% c(0, 1, 14, 3, 4, 5, 6))
-       , aes(x = Location_Station, y = cells_per_mL, fill = Location_Station)) +
-  geom_bar(stat = "identity") + # Bar plot with count of events
-  facet_grid(Depth ~ Gate, scales = "fixed", switch = "both") + # Facets for Depth and Gate
-  scale_fill_manual(values = custom_palette) +
-  labs(
-    title = "Distribution of Events Across Location_Station",
-    x = "Location_Station",
-    y = "Number of Events"
-  ) +
-  theme_bw() +
-  theme(
-    strip.background = element_rect(fill = "lightgray", colour = "black"),
-    strip.text = element_text(size = 10, face = "bold"),
-    axis.text.x = element_text(angle = 90)
-  )
+ggsave("phyto_abundance_facet_plot_depths.svg", width = 12, height = 8, dpi = 800)
 
 
 
@@ -162,96 +183,6 @@ ggplot(phyto_counts %>%
 
 
 
-library(dplyr)
-library(ggplot2)
-library(ggfortify) # For PCA visualization with ggplot2
 
-
-# Pivot the data to make gates wide and use Total_Events as values
-pca_data <- phyto_counts %>%
-  select(Location, Station_Number, Depth, Gate, Total_Events) %>% # Select relevant columns
-  pivot_wider(names_from = Gate, values_from = Total_Events, names_prefix = "gate_") %>%
-  select(-gate_0)  %>% # Pivot gates wide
-  mutate(across(starts_with("gate_"), ~ as.numeric(unlist(.))))
-
-# Perform PCA
-pca_result <- prcomp(pca_data %>% select(-Location, -Station_Number, -Depth), center = TRUE, scale. = TRUE)
-
-# Add PCA results and metadata back to the dataset
-pca_data <- pca_data %>%
-  mutate(
-    PC1 = pca_result$x[, 1],
-    PC2 = pca_result$x[, 2]
-  )
-
-# Combine Location and Station_Number for visualization
-pca_data <- pca_data %>%
-  mutate(Location_Station = paste(Location, Station_Number, sep = "_"))
-
-# Plot PCA with ellipses for Location and different shapes for Depth
-ggplot(pca_data, aes(x = PC1, y = PC2, color = Location_Station, shape = as.factor(Depth))) +
-  geom_point(size = 3, alpha = 0.8) + # Points for each observation
-  stat_ellipse(aes(group = Location), linetype = "dashed", size = 1, alpha = 0.6) + # Ellipses for locations
-  scale_color_manual(values = custom_palette) +
-  labs(
-    title = "PCA of Phytoplankton Counts (Gates as Parameters)",
-    x = "Principal Component 1",
-    y = "Principal Component 2",
-    color = "Location",
-    shape = "Depth"
-  ) +
-  theme_minimal() +
-  theme(
-    legend.position = "right",
-    legend.title = element_text(size = 10, face = "bold"),
-    legend.text = element_text(size = 9)
-  )
-
-
-############
-
-
-
-# Perform PCA
-pca_result <- prcomp(pca_data %>% select(starts_with("gate_")), center = TRUE, scale. = TRUE)
-
-# Extract PCA loadings
-loadings <- as.data.frame(pca_result$rotation[, 1:2]) # Select PC1 and PC2 loadings
-loadings <- loadings %>%
-  mutate(Gate = rownames(loadings)) # Add gate names for labeling
-
-# Add PCA results and metadata back to the dataset
-pca_data <- pca_data %>%
-  mutate(
-    PC1 = pca_result$x[, 1],
-    PC2 = pca_result$x[, 2]
-  )
-
-# Combine Location and Station_Number for visualization
-pca_data <- pca_data %>%
-  mutate(Location_Station = paste(Location, Station_Number, sep = "_"))
-
-# Plot PCA with loadings, ellipses, and shapes for Depth
-ggplot(pca_data, aes(x = PC1, y = PC2, color = Location_Station, shape = as.factor(Location))) +
-  geom_point(size = 3, alpha = 0.8) + # Points for each observation
-  stat_ellipse(aes(group = Location), linetype = "dashed", size = 1, alpha = 0.6) + # Ellipses for locations
-  geom_segment(data = loadings, aes(x = 0, y = 0, xend = PC1 * 5, yend = PC2 * 5), 
-               arrow = arrow(length = unit(0.2, "cm")), color = "blue", size = 0.8, inherit.aes = FALSE) + # Arrows for loadings
-  geom_text(data = loadings, aes(x = PC1 * 5, y = PC2 * 5, label = Gate), 
-            color = "blue", size = 3, vjust = -0.5, inherit.aes = FALSE) + # Labels for loadings
-  scale_color_manual(values = custom_palette) +
-  labs(
-    title = "PCA of Phytoplankton Counts (Gates as Parameters)",
-    x = "Principal Component 1",
-    y = "Principal Component 2",
-    color = "Location_Station",
-    shape = "Depth"
-  ) +
-  theme_minimal() +
-  theme(
-    legend.position = "right",
-    legend.title = element_text(size = 10, face = "bold"),
-    legend.text = element_text(size = 9)
-  )
 
 
